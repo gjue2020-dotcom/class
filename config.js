@@ -10,4 +10,5 @@ window.FIREBASE_CONFIG = {
   storageBucket: "class-131c9.firebasestorage.app",
   messagingSenderId: "69008139444",
   appId: "1:69008139444:web:a25352a0ba9b2e035223e1",
+  measurementId: "G-K4SXLN90SD"  
 };
