@@ -458,15 +458,84 @@ function boot(){
     startData();
   });
 }
+const AUTH_MSG = {
+  "auth/invalid-credential":"이메일이나 비밀번호가 맞지 않아요.",
+  "auth/wrong-password":"이메일이나 비밀번호가 맞지 않아요.",
+  "auth/user-not-found":"이메일이나 비밀번호가 맞지 않아요. 비밀번호는 컴퓨터에서 구글로 로그인한 뒤 설정에서 먼저 만들어 주세요.",
+  "auth/invalid-email":"이메일 주소를 다시 확인해 주세요.",
+  "auth/missing-password":"비밀번호를 입력해 주세요.",
+  "auth/too-many-requests":"여러 번 틀려서 잠시 막혔어요. 몇 분 뒤 다시 해 주세요.",
+  "auth/network-request-failed":"인터넷 연결을 확인해 주세요.",
+  "auth/operation-not-allowed":"Firebase에서 이 로그인 방법이 꺼져 있어요. 안내서의 ‘이메일 로그인 켜기’를 확인해 주세요.",
+  "auth/popup-blocked":"로그인 창이 막혔어요. 이메일·비밀번호로 로그인하거나, 주소창의 팝업 차단을 풀어 주세요.",
+  "auth/operation-not-supported-in-this-environment":"이 화면에서는 구글 로그인이 안 돼요. 이메일·비밀번호로 로그인해 주세요.",
+  "auth/web-storage-unsupported":"이 화면에서는 구글 로그인이 안 돼요. 이메일·비밀번호로 로그인해 주세요.",
+  "auth/unauthorized-domain":"Firebase 승인된 도메인에 이 주소가 없어요. 안내서 6단계를 확인해 주세요."
+};
+const authMsg = e => AUTH_MSG[e && e.code] || ("로그인하지 못했어요. (" + ((e && e.code) || "오류") + ")");
 function showLogin(){
-  gate("학급 기록장","선생님 구글 계정으로 로그인하면 휴대폰·컴퓨터·전자칠판에서 같은 기록을 볼 수 있어요.",
-    `<button class="btn primary" type="button" id="loginBtn" style="justify-content:center"><i data-lucide="log-in"></i>구글 계정으로 로그인</button>`);
+  gate("학급 기록장","선생님 계정으로 로그인하면 휴대폰·컴퓨터·전자칠판에서 같은 기록을 볼 수 있어요.",
+    `<div class="fl"><label for="lgE">이메일</label><input id="lgE" type="email" autocomplete="username" inputmode="email" value="${esc(LS.get("lastEmail")||"")}"></div>
+     <div class="fl"><label for="lgP">비밀번호</label><input id="lgP" type="password" autocomplete="current-password"></div>
+     <div id="lgErr" style="color:var(--miss);font-size:13px;min-height:18px"></div>
+     <button class="btn primary" type="button" id="lgGo" style="justify-content:center"><i data-lucide="log-in"></i>로그인</button>
+     <button class="addline" type="button" id="lgReset" style="align-self:center">비밀번호를 잊었어요</button>
+     <div style="display:flex;align-items:center;gap:10px;color:var(--faint);font-size:12px"><span style="flex:1;height:1px;background:var(--line)"></span>또는<span style="flex:1;height:1px;background:var(--line)"></span></div>
+     <button class="btn" type="button" id="loginBtn" style="justify-content:center">구글 계정으로 로그인 (컴퓨터)</button>
+     <p style="font-size:12px">휴대폰·전자칠판에서는 이메일·비밀번호로 로그인하세요. 비밀번호는 컴퓨터에서 구글로 로그인한 뒤 <b>설정 → 휴대폰·전자칠판용 비밀번호</b>에서 만들 수 있어요.</p>`);
+  const err = m => { $("#lgErr").textContent = m || ""; };
+  const go = async ()=>{
+    const email=$("#lgE").value.trim(), pw=$("#lgP").value;
+    if(!email || !pw) return err("이메일과 비밀번호를 입력해 주세요.");
+    err(""); $("#lgGo").disabled=true;
+    try{ await auth.signInWithEmailAndPassword(email, pw); LS.set("lastEmail", email); }
+    catch(e){ err(authMsg(e)); $("#lgGo").disabled=false; }
+  };
+  $("#lgGo").onclick = go;
+  $("#lgP").onkeydown = e=>{ if(e.key==="Enter") go(); };
+  $("#lgReset").onclick = async ()=>{
+    const email=$("#lgE").value.trim();
+    if(!email) return err("이메일을 먼저 입력해 주세요.");
+    try{ await auth.sendPasswordResetEmail(email); err(""); toast("비밀번호를 새로 정하는 메일을 보냈어요. 메일함을 확인해 주세요."); }
+    catch(e){ err(authMsg(e)); }
+  };
   $("#loginBtn").onclick = async ()=>{
-    const p = new firebase.auth.GoogleAuthProvider();
-    try{ await auth.signInWithPopup(p); }
-    catch(e){
-      if(["auth/popup-blocked","auth/operation-not-supported-in-this-environment","auth/web-storage-unsupported"].includes(e.code)) auth.signInWithRedirect(p);
-      else if(!["auth/popup-closed-by-user","auth/cancelled-popup-request"].includes(e.code)) toast("로그인하지 못했어요. ("+(e.code||"오류")+")");
+    try{ await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); }
+    catch(e){ if(!["auth/popup-closed-by-user","auth/cancelled-popup-request"].includes(e.code)) err(authMsg(e)); }
+  };
+}
+const hasPw = () => !!auth?.currentUser?.providerData?.some(p=>p.providerId==="password");
+function pwMakeModal(){
+  const email = auth.currentUser.email || "";
+  openModal(`<div class="sheet-h">휴대폰·전자칠판용 비밀번호 만들기<p>이 구글 계정(${esc(email)})에 비밀번호를 하나 더 붙여요. 다른 기기에서 이메일과 이 비밀번호로 로그인하면 같은 기록이 보여요.</p></div>
+    <div class="form">
+      <div class="fl"><label for="mP1">새 비밀번호 (6자 이상)</label><input id="mP1" type="password" autocomplete="new-password"></div>
+      <div class="fl"><label for="mP2">한 번 더</label><input id="mP2" type="password" autocomplete="new-password"></div>
+      <div id="mPErr" style="color:var(--miss);font-size:13px;min-height:18px"></div>
+    </div>
+    <div class="sheet-f"><button class="btn" type="button" data-act="closemodal">취소</button><button class="btn primary" type="button" id="mSave">만들기</button></div>`);
+  const err = m => { $("#mPErr").textContent = m; };
+  $("#mSave").onclick = async ()=>{
+    const p1=$("#mP1").value, p2=$("#mP2").value;
+    if(p1.length<6) return err("비밀번호는 6자 이상으로 정해 주세요.");
+    if(p1!==p2) return err("두 비밀번호가 서로 달라요.");
+    $("#mSave").disabled=true;
+    const cred = firebase.auth.EmailAuthProvider.credential(email, p1);
+    try{
+      try{ await auth.currentUser.linkWithCredential(cred); }
+      catch(e){
+        if(e.code!=="auth/requires-recent-login") throw e;
+        await auth.currentUser.reauthenticateWithPopup(new firebase.auth.GoogleAuthProvider());
+        await auth.currentUser.linkWithCredential(cred);
+      }
+      await auth.currentUser.reload();
+      LS.set("lastEmail", email);
+      closeModal(); toast("비밀번호를 만들었어요. 휴대폰에서 이메일과 이 비밀번호로 로그인하세요."); render();
+    }catch(e){
+      $("#mSave").disabled=false;
+      if(e.code==="auth/provider-already-linked"||e.code==="auth/credential-already-in-use"||e.code==="auth/email-already-in-use") err("이미 비밀번호가 있어요. 바꾸려면 ‘바꾸기’를 눌러 메일로 새로 정하세요.");
+      else if(e.code==="auth/weak-password") err("비밀번호가 너무 쉬워요. 6자 이상으로 정해 주세요.");
+      else err(authMsg(e));
     }
   };
 }
@@ -622,7 +691,7 @@ function hwModal(h){
     if(!title){ $("#mT").focus(); return toast("숙제 제목을 입력해 주세요."); }
     if(!due) return toast("마감일을 골라 주세요.");
     if(isNew) write(col("hw").doc(), r=>r.set({title, due, closed:false, subs:{}, created:new Date().toISOString()}));
-    else write(col("hw").doc(h.id), r=>r.update({title, due, closed:$("#mC").checked}));
+    else { const closed=$("#mC").checked; write(col("hw").doc(h.id), r=>r.update({title, due, closed})); }
     closeModal();
   };
   if(!isNew) armDelete($("#mDel"), ()=>{ write(col("hw").doc(h.id), r=>r.delete()); closeModal(); toast("숙제를 삭제했어요."); });
@@ -966,6 +1035,7 @@ function vSet(){
         ${past.length&&isCur?`<div class="row" style="color:var(--muted);font-size:13px"><i data-lucide="archive"></i><span class="grow">지난 학년도 기록은 위에서 학년도를 바꾸면 볼 수 있어요.</span></div>`:""}
         <div class="row"><i data-lucide="download"></i><span class="grow">${S.viewY}학년도 엑셀로 백업</span><button class="btn" type="button" data-act="export">내려받기</button></div>
         <div class="row"><i data-lucide="user-round"></i><span class="grow" style="min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(auth?.currentUser?.email||"")}</span><button class="btn" type="button" data-act="logout"><i data-lucide="log-out"></i>로그아웃</button></div>
+        <div class="row"><i data-lucide="key-round"></i><span class="grow">휴대폰·전자칠판용 비밀번호</span>${hasPw()?`<span class="label">설정됨</span><button class="btn" type="button" data-act="pwreset">바꾸기</button>`:`<button class="btn primary" type="button" data-act="pwmake">만들기</button>`}</div>
       </div></div>
       <div class="panel"><div class="panel-h">전자칠판<span class="meta">학생 화면</span></div>
         <div class="inline"><i data-lucide="lock"></i><span style="font-size:14px">나가기 비밀번호</span><input id="pinIn" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="${/^\d{4}$/.test(S.prefs.pin||"")?"설정됨 · 새 번호 4자리":"숫자 4자리"}" style="max-width:170px"><button class="btn" type="button" data-act="pinsave">저장</button></div></div>
@@ -1124,6 +1194,8 @@ document.addEventListener("click", e=>{
       break; }
     case "export": exportXlsx(); break;
     case "logout": if(!S.board) auth.signOut(); break;
+    case "pwmake": pwMakeModal(); break;
+    case "pwreset": auth.sendPasswordResetEmail(auth.currentUser.email).then(()=>toast("비밀번호를 새로 정하는 메일을 보냈어요. 메일함을 확인해 주세요.")).catch(e=>toast(authMsg(e))); break;
   }
 });
 document.addEventListener("input", e=>{ const el=e.target; if(el.dataset && el.dataset.l) onLessonInput(el); });
