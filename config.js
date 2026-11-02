@@ -4,10 +4,10 @@
 // 이 값들은 공개돼도 괜찮아요. 기록은 Firestore 보안 규칙이 지켜줍니다.
 
 window.FIREBASE_CONFIG = {
-  apiKey: "여기에",
-  authDomain: "여기에",
-  projectId: "여기에",
-  storageBucket: "여기에",
-  messagingSenderId: "여기에",
-  appId: "여기에"
+  apiKey: "AIzaSyA1pHOStXha6_r6XDEfLn-59N1DAxOKjUk",
+  authDomain: "class-131c9.firebaseapp.com",
+  projectId: "class-131c9",
+  storageBucket: "class-131c9.firebasestorage.app",
+  messagingSenderId: "69008139444",
+  appId: "1:69008139444:web:a25352a0ba9b2e035223e1",
 };
